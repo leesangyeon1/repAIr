@@ -11,12 +11,14 @@ import KnowledgePanel from "@/components/KnowledgePanel";
 import SearchIntelligencePanel from "@/components/SearchIntelligencePanel";
 import { useVoiceCommands } from "@/hooks/useVoiceCommands";
 import { parseCommand, type Command } from "@/lib/command-parser";
-import { DATASET_LABEL, NODE_STYLE, SEED_GRAPH, SEED_LINKS, SEED_NODES, initialGraph } from "@/lib/graph-data";
+import { DATASETS, getDataset } from "@/lib/datasets";
+import { NODE_STYLE, initialGraph } from "@/lib/graph-data";
 import { findOwningSystem, getNeighborIds, getNodeById, getSystemSubgraphIds, mergeGraph } from "@/lib/graph-utils";
 import {
   NODE_TYPES,
   healthResponseSchema,
   searchResponseSchema,
+  type DatasetId,
   type HealthResponse,
   type KnowledgeGraph,
   type KnowledgeNode,
@@ -60,6 +62,9 @@ export default function Home() {
   const voiceOutputTouched = useRef(false);
   const selectedRef = useRef<string | null>(null);
 
+  const [datasetId, setDatasetId] = useState<DatasetId>("aerospace");
+  const dataset = getDataset(datasetId);
+  const seed = dataset.graph;
   const [graph, setGraph] = useState<KnowledgeGraph>(() => initialGraph());
   const [dynamicGraph, setDynamicGraph] = useState<KnowledgeGraph>({ nodes: [], links: [] });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -82,9 +87,9 @@ export default function Home() {
 
   /** Seeded + retrieved knowledge, including nodes not yet revealed in the hologram. */
   const known = useMemo<KnowledgeGraph>(() => {
-    const merged = mergeGraph(SEED_GRAPH, dynamicGraph.nodes, dynamicGraph.links);
+    const merged = mergeGraph(seed, dynamicGraph.nodes, dynamicGraph.links);
     return { nodes: merged.nodes, links: merged.links };
-  }, [dynamicGraph]);
+  }, [dynamicGraph, seed]);
 
   const selectedNode = getNodeById(known.nodes, selectedId) ?? null;
   const liveSearch = !!health && (health.telemConfigured || health.tavilyConfigured);
@@ -117,14 +122,14 @@ export default function Home() {
     setGraph((current) => {
       const merged = mergeGraph(
         current,
-        [...SEED_NODES.filter((n) => wanted.has(n.id)), ...(extra?.nodes ?? [])],
-        [...SEED_LINKS, ...(extra?.links ?? [])],
+        [...seed.nodes.filter((n) => wanted.has(n.id)), ...(extra?.nodes ?? [])],
+        [...seed.links, ...(extra?.links ?? [])],
       );
       return merged.addedNodeIds.length || merged.links.length !== current.links.length
         ? { nodes: merged.nodes, links: merged.links }
         : current;
     });
-  }, []);
+  }, [seed]);
 
   /** Change the selection, remembering the previous node for "go back". */
   const moveSelection = useCallback((id: string | null, record = true) => {
@@ -138,7 +143,7 @@ export default function Home() {
     (r: SearchResponse) => {
       if (!r.newNodes.length) return;
       setDynamicGraph((current) => {
-        const merged = mergeGraph({ nodes: [...SEED_NODES, ...current.nodes], links: current.links }, r.newNodes, r.newLinks);
+        const merged = mergeGraph({ nodes: [...seed.nodes, ...current.nodes], links: current.links }, r.newNodes, r.newLinks);
         return {
           nodes: merged.nodes.filter((n) => n.metadata?.dynamic === true),
           links: merged.links,
@@ -146,7 +151,7 @@ export default function Home() {
       });
       reveal([], { nodes: r.newNodes, links: r.newLinks });
     },
-    [reveal],
+    [reveal, seed],
   );
 
   const selectNode = useCallback(
@@ -186,7 +191,7 @@ export default function Home() {
       setError(null);
       setStatus(mode === "expand" ? "Retrieving live sources for this node…" : `Searching: “${query}”`);
       try {
-        const r = await postJson("/api/search", { query, selectedNodeId: nodeId ?? null, mode });
+        const r = await postJson("/api/search", { query, selectedNodeId: nodeId ?? null, mode, datasetId });
         if (seq !== requestSeq.current) return null;
         setResult(r);
         setResearch(null);
@@ -205,18 +210,18 @@ export default function Home() {
         if (seq === requestSeq.current) setLoading(false);
       }
     },
-    [applyResult],
+    [applyResult, datasetId],
   );
 
-  const describe = (r: SearchResponse): string => {
-    const focus = getNodeById(SEED_NODES, r.focusNodeId)?.name;
+  const describe = useCallback((r: SearchResponse): string => {
+    const focus = getNodeById(seed.nodes, r.focusNodeId)?.name;
     const where = focus ? ` Focused on ${focus}.` : "";
     if (r.searchMetadata.mode === "demo") return `Demo mode: answered from the synthetic graph.${where}`;
     if (r.evidenceStatus === "not_needed") return `Answered from the knowledge graph.${where}`;
     const failure = r.searchMetadata.calls.find((c) => c.status === "error" || c.status === "timeout");
     if (!r.sources.length && failure) return `Live search failed: ${failure.error ?? "request error"}.${where}`;
     return `${r.sources.length} source${r.sources.length === 1 ? "" : "s"} retrieved, ${r.evidence.length} used as evidence, in ${(r.searchMetadata.latencyMs / 1000).toFixed(1)} s.${where}`;
-  };
+  }, [seed]);
 
   /* ---------- Voice ---------- */
 
@@ -277,7 +282,11 @@ export default function Home() {
     setPanelOpen(true);
     setStatus("Deep Research: querying Tavily directly…");
     try {
-      const r = await postJson("/api/research", { query: result.query, selectedNodeId: result.focusNodeId ?? selectedId });
+      const r = await postJson("/api/research", {
+        query: result.query,
+        selectedNodeId: result.focusNodeId ?? selectedId,
+        datasetId,
+      });
       setResearch(r);
       addDynamic(r);
       if (r.newNodes.length) setHighlightIds((h) => [...new Set([...h, ...r.newNodes.map((n) => n.id)])]);
@@ -293,12 +302,13 @@ export default function Home() {
     } finally {
       setResearchLoading(false);
     }
-  }, [addDynamic, result, selectedId]);
+  }, [addDynamic, datasetId, result, selectedId]);
 
-  const resetGraph = useCallback(() => {
+  /** Clear everything and show the starting view of `start` (the active dataset unless switching). */
+  const resetTo = useCallback((start: KnowledgeGraph, message: string) => {
     requestSeq.current++;
     stopSpeaking();
-    setGraph(initialGraph());
+    setGraph(initialGraph(start));
     setDynamicGraph({ nodes: [], links: [] });
     moveSelection(null);
     setHighlightIds([]);
@@ -309,20 +319,31 @@ export default function Home() {
     setError(null);
     setLoading(false);
     setRotating(false);
-    setStatus("Graph reset to the starting view.");
+    setStatus(message);
     window.setTimeout(() => graphApi.current?.resetView(), 400);
   }, [moveSelection, stopSpeaking]);
+
+  const resetGraph = useCallback(() => resetTo(seed, "Graph reset to the starting view."), [resetTo, seed]);
+
+  const switchDataset = useCallback(
+    (id: DatasetId) => {
+      const next = getDataset(id);
+      setDatasetId(id);
+      resetTo(next.graph, `Switched to the ${next.name} example.`);
+    },
+    [resetTo],
+  );
 
   const showAll = useCallback(() => {
     setFilterIds(null);
     setHighlightIds([]);
     reveal(
-      SEED_NODES.map((n) => n.id),
+      seed.nodes.map((n) => n.id),
       dynamicGraph,
     );
     setStatus("Showing every node in the knowledge base.");
     window.setTimeout(() => graphApi.current?.resetView(), 700);
-  }, [dynamicGraph, reveal]);
+  }, [dynamicGraph, reveal, seed]);
 
   const hideUnrelated = useCallback(() => {
     if (!selectedId) {
@@ -447,6 +468,7 @@ export default function Home() {
     },
     [
       deepResearch,
+      describe,
       dynamicGraph,
       expandNode,
       hideUnrelated,
@@ -470,11 +492,11 @@ export default function Home() {
     (text: string, viaVoice: boolean) => {
       // Using the microphone switches spoken answers on, unless the user already chose otherwise.
       if (viaVoice && !voiceOutputTouched.current) setVoiceOutput(true);
-      const commands = parseCommand(text, { nodes: SEED_NODES, selectedNodeId: selectedId });
+      const commands = parseCommand(text, { nodes: seed.nodes, selectedNodeId: selectedId });
       if (!commands.length) return;
       void execute(commands, viaVoice);
     },
-    [execute, selectedId],
+    [execute, seed, selectedId],
   );
 
   useEffect(() => {
@@ -561,7 +583,22 @@ export default function Home() {
             <span className={`h-2 w-2 rounded-full ${statusPill.dot}`} aria-hidden />
             {statusPill.text}
           </span>
-          <span className="glass rounded-full px-3 py-1 text-[11px] text-amber-200/90 max-sm:hidden">{DATASET_LABEL}</span>
+          <label className="glass flex items-center gap-1.5 rounded-full py-1 pl-3 pr-2 text-xs text-cyan-100">
+            <span className="text-slate-400">Example</span>
+            <select
+              value={datasetId}
+              onChange={(e) => switchDataset(e.target.value as DatasetId)}
+              aria-label="Example machine"
+              className="cursor-pointer bg-transparent font-medium text-cyan-100 focus:outline-none"
+            >
+              {DATASETS.map((d) => (
+                <option key={d.id} value={d.id} className="bg-slate-900 text-slate-100">
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="glass rounded-full px-3 py-1 text-[11px] text-amber-200/90 max-sm:hidden">{dataset.label}</span>
           <button
             type="button"
             onClick={() => setPanelOpen((open) => !open)}
@@ -615,6 +652,7 @@ export default function Home() {
             }}
             loading={loading || researchLoading}
             status={status}
+            suggestions={dataset.suggestions}
             onSubmit={(text) => handleText(text, false)}
             onClear={clearAll}
           />

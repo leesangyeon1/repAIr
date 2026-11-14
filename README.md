@@ -4,7 +4,21 @@
 
 repAIr turns maintenance knowledge into a voice-controlled 3D knowledge graph. Machines, systems, components, symptoms, documents and repair procedures float as a holographic network in the browser. You navigate it by mouse, text or voice, and technical questions are answered with live, cited web sources retrieved through **Telem AI**, with **Tavily** as fallback and as an explicit "Deep Research" step.
 
-> The bundled knowledge base is **synthetic demo data** for a fictional spacecraft engine cooling system. It is not documentation for any real or certified machine, and the app labels it that way.
+> The bundled knowledge bases are **synthetic demo data** for fictional machines. They are not documentation for any real or certified machine, and the app labels them that way.
+
+## Example datasets
+
+Pick an industry from the **Example** switcher in the header. Each one is its own knowledge graph with matching suggestion chips, and searches and Deep Research run against the selected graph.
+
+| Industry | Fictional machine | Try asking |
+| --- | --- | --- |
+| Aerospace | Spacecraft engine cooling loop | "Why is the engine overheating?" |
+| Energy | 3 MW onshore wind turbine | "Why is the gearbox overheating?" |
+| Manufacturing | Three-axis CNC machining center | "Parts are out of tolerance, what causes that?" |
+| Electric Appliance | Front-load washing machine | "My washer won't drain" |
+| Car Engine | 2.0 L four-cylinder petrol engine | "Why is the engine misfiring?" |
+
+Datasets live in `lib/datasets/` (aerospace stays in `lib/graph-data.ts`). To add one, copy a dataset file, add its id to `DATASET_IDS` in `lib/types.ts`, register it in `lib/datasets/index.ts`, and add a few cases to `lib/eval-set.ts`. `npm test` checks every dataset's integrity and suggestions.
 
 One Next.js app. No database, no Python, no separate backend. Deploys to Vercel as is.
 

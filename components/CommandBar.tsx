@@ -13,18 +13,13 @@ type Props = {
   loading: boolean;
   /** Short feedback line: what the last command did. */
   status: string | null;
+  /** Example commands for the active dataset. */
+  suggestions: string[];
   onSubmit: (text: string) => void;
   onClear: () => void;
 };
 
-const SUGGESTIONS = [
-  "Show me the cooling system",
-  "Why is the engine overheating?",
-  "Expand the cooling pump",
-  "Hide unrelated nodes",
-];
-
-export default function CommandBar({ voice, voiceOutput, onToggleVoiceOutput, loading, status, onSubmit, onClear }: Props) {
+export default function CommandBar({ voice, voiceOutput, onToggleVoiceOutput, loading, status, suggestions, onSubmit, onClear }: Props) {
   const [text, setText] = useState("");
 
   const submit = (e: FormEvent) => {
@@ -47,7 +42,7 @@ export default function CommandBar({ voice, voiceOutput, onToggleVoiceOutput, lo
   return (
     <div className="w-full">
       <div className="mb-2 flex gap-1.5 overflow-x-auto px-1 pb-0.5 max-sm:hidden">
-        {SUGGESTIONS.map((s) => (
+        {suggestions.map((s) => (
           <button
             key={s}
             type="button"

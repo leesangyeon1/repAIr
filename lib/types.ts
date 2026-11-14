@@ -42,6 +42,22 @@ export type KnowledgeLink = {
 
 export type KnowledgeGraph = { nodes: KnowledgeNode[]; links: KnowledgeLink[] };
 
+/* ---------- Example datasets ---------- */
+
+export const DATASET_IDS = ["aerospace", "energy", "manufacturing", "appliance", "automotive"] as const;
+export type DatasetId = (typeof DATASET_IDS)[number];
+
+export type Dataset = {
+  id: DatasetId;
+  /** Short industry name for the dataset switcher. */
+  name: string;
+  /** Header pill text; always states that the data is synthetic. */
+  label: string;
+  graph: KnowledgeGraph;
+  /** Suggestion chips shown above the command bar. */
+  suggestions: string[];
+};
+
 export const knowledgeNodeSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -136,16 +152,20 @@ const nodeIdSchema = z
   .regex(/^[a-z0-9_]+$/)
   .nullish();
 
+const datasetIdSchema = z.enum(DATASET_IDS).default("aerospace");
+
 export const searchRequestSchema = z.object({
   query: querySchema,
   selectedNodeId: nodeIdSchema,
   mode: z.enum(["normal", "expand"]).default("normal"),
+  datasetId: datasetIdSchema,
 });
 export type SearchRequest = z.infer<typeof searchRequestSchema>;
 
 export const researchRequestSchema = z.object({
   query: querySchema,
   selectedNodeId: nodeIdSchema,
+  datasetId: datasetIdSchema,
 });
 export type ResearchRequest = z.infer<typeof researchRequestSchema>;
 
