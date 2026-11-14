@@ -4,11 +4,13 @@ import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CommandBar from "@/components/CommandBar";
+import { GesturePanel, GestureToggle } from "@/components/GestureControls";
 import GraphErrorBoundary from "@/components/GraphErrorBoundary";
 import GraphToolbar from "@/components/GraphToolbar";
 import type { GraphHandle } from "@/components/HolographicGraph";
 import KnowledgePanel from "@/components/KnowledgePanel";
 import SearchIntelligencePanel from "@/components/SearchIntelligencePanel";
+import { useHandGestures } from "@/hooks/useHandGestures";
 import { useVoiceCommands } from "@/hooks/useVoiceCommands";
 import { parseCommand, type Command } from "@/lib/command-parser";
 import { DATASET_LABEL, NODE_STYLE, SEED_GRAPH, SEED_LINKS, SEED_NODES, initialGraph } from "@/lib/graph-data";
@@ -481,6 +483,23 @@ export default function Home() {
     commandHandler.current = handleText;
   }, [handleText]);
 
+  /* ---------- Hand gestures ---------- */
+
+  // Held gestures and dwell-select reuse the voice command path; fist and pinch move the camera directly.
+  const gestures = useHandGestures({
+    onCommand: (command) => void execute([command], false),
+    onOrbit: (dx, dy) => graphApi.current?.orbit(dx, dy),
+    onPan: (dx, dy) => graphApi.current?.pan(dx, dy),
+    onZoom: (factor) => graphApi.current?.zoom(factor, 0),
+    pick: (x, y) => graphApi.current?.pickAt(x, y) ?? null,
+    onModeChange: (mode) =>
+      setStatus(
+        mode === "active"
+          ? "Gesture mode on. Cross your index fingers (X) to exit."
+          : "Gesture mode off. Show an OK sign (👌) to start again.",
+      ),
+  });
+
   const clearAll = useCallback(() => {
     requestSeq.current++;
     stopSpeaking();
@@ -547,6 +566,12 @@ export default function Home() {
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_55%,rgba(2,4,12,0.85)_100%)]"
           aria-hidden
         />
+        <div ref={gestures.cursorRef} className="hand-cursor" style={{ display: "none" }} aria-hidden />
+      </div>
+
+      {/* Below the header on desktop, below the horizontal toolbar on phones; clear of the command bar. */}
+      <div className="pointer-events-none absolute right-2 top-[150px] z-20 md:right-4 md:top-[118px] lg:right-[calc(27%+1rem)]">
+        <GesturePanel gestures={gestures} />
       </div>
 
       <header className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex items-start justify-between gap-3 p-3 sm:p-4 lg:right-[27%]">
@@ -554,7 +579,7 @@ export default function Home() {
           <h1 className="text-2xl font-bold leading-none tracking-tight text-white sm:text-[28px]">
             rep<span className="text-cyan-300 drop-shadow-[0_0_12px_rgba(34,211,238,0.8)]">AI</span>r
           </h1>
-          <p className="mt-1 text-xs text-slate-300 sm:text-sm">Your Technical Knowledge, Reimagined in 3D</p>
+          <p className="mt-1 text-xs text-slate-300 max-sm:hidden sm:text-sm">Your Technical Knowledge, Reimagined in 3D</p>
         </div>
         <div className="pointer-events-auto flex shrink-0 flex-col items-end gap-1.5">
           <span className={`glass flex items-center gap-2 rounded-full px-3 py-1 text-xs ${statusPill.tone}`}>
@@ -562,15 +587,18 @@ export default function Home() {
             {statusPill.text}
           </span>
           <span className="glass rounded-full px-3 py-1 text-[11px] text-amber-200/90 max-sm:hidden">{DATASET_LABEL}</span>
-          <button
-            type="button"
-            onClick={() => setPanelOpen((open) => !open)}
-            className="glass flex items-center gap-1.5 rounded-full px-3 py-1 text-xs text-cyan-100 lg:hidden"
-            aria-expanded={panelOpen}
-          >
-            {panelOpen ? <PanelRightClose className="h-3.5 w-3.5" aria-hidden /> : <PanelRightOpen className="h-3.5 w-3.5" aria-hidden />}
-            Details
-          </button>
+          <div className="flex items-center gap-1.5">
+            <GestureToggle gestures={gestures} />
+            <button
+              type="button"
+              onClick={() => setPanelOpen((open) => !open)}
+              className="glass flex h-8 items-center gap-1.5 rounded-full px-3 text-xs text-cyan-100 lg:hidden"
+              aria-expanded={panelOpen}
+            >
+              {panelOpen ? <PanelRightClose className="h-3.5 w-3.5" aria-hidden /> : <PanelRightOpen className="h-3.5 w-3.5" aria-hidden />}
+              Details
+            </button>
+          </div>
         </div>
       </header>
 
