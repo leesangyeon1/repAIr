@@ -1,0 +1,19 @@
+{
+  "_note": "Shaped like TavilySearchResponse from @tavily/core typings; content invented for testing.",
+  "query": "cooling pump inspection",
+  "responseTime": 1.2,
+  "images": [],
+  "requestId": "req-test",
+  "results": [
+    {
+      "title": "Inspecting a centrifugal cooling pump",
+      "url": "https://example.com/inspect-pump",
+      "content": "Inspect the cooling pump for bearing noise and seal leakage, then confirm delivered coolant flow against the rated value.",
+      "score": 0.91,
+      "publishedDate": "2025-03-02",
+      "id": "a"
+    },
+    { "title": "", "url": "https://example.com/untitled", "content": "Body text", "score": 0.4, "publishedDate": "", "id": "b" },
+    { "title": "Bad", "url": "ftp://example.com/file", "content": "ignored", "score": 0.2, "publishedDate": "", "id": "c" }
+  ]
+}

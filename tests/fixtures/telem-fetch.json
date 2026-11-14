@@ -1,0 +1,38 @@
+{
+  "_note": "Schema-compatible fixture built from the Telem /v1/fetch API reference; not a recorded live response.",
+  "session_id": "00000000-0000-4000-8000-000000000003",
+  "interaction_id": "00000000-0000-4000-8000-000000000004",
+  "status": "succeeded",
+  "routing": null,
+  "preprocessor_runs": [
+    {
+      "preprocessor_name": "fetch",
+      "status": "succeeded",
+      "batch_index": 0,
+      "output_payload": {
+        "requested_url_count": 2,
+        "succeeded_count": 1,
+        "failed_count": 1,
+        "fetched_results": [
+          {
+            "url": "https://example.org/pumps/low-flow",
+            "status": "succeeded",
+            "error": null,
+            "provider": "jina",
+            "title": "Why a coolant pump delivers low flow",
+            "content_format": "text",
+            "content": "Low coolant flow from a cooling pump is usually traced to a worn impeller, trapped air or a slipping drive. Measure delivered flow at a fixed speed and compare it with the rated value before replacing the pump.",
+            "content_truncated": false
+          },
+          {
+            "url": "https://example.org/radiators/blocked-fins",
+            "status": "failed",
+            "error": { "code": "fetch_failed", "message": "blocked" },
+            "provider": "jina",
+            "content": null
+          }
+        ]
+      }
+    }
+  ]
+}

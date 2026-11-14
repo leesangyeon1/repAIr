@@ -1,0 +1,76 @@
+{
+  "_note": "Schema-compatible fixture built from the field list in the Telem API reference (docs.telem.ai/api/operations/create_search_v1_search_post). Content is invented for testing; it is not a recorded live response.",
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "interaction_id": "00000000-0000-4000-8000-000000000002",
+  "status": "succeeded",
+  "normalized_schema_version": 2,
+  "routing": [{ "providers": ["exa", "brave", "tavily"] }],
+  "pinned_providers": null,
+  "created_at": "2026-11-14T12:00:00Z",
+  "completed_at": "2026-11-14T12:00:02Z",
+  "preprocessor_runs": [
+    {
+      "preprocessor_name": "exa",
+      "status": "succeeded",
+      "batch_index": 0,
+      "query": "engine overheating cooling pump causes",
+      "latency_ms": 812,
+      "error": null,
+      "output_payload": {
+        "tier": "default",
+        "warnings": [],
+        "results": [
+          {
+            "url": "https://example.org/pumps/low-flow?utm_source=test",
+            "title": "Why a coolant pump delivers low flow",
+            "rank": 1,
+            "summary": "A worn impeller or air trapped in the cooling pump reduces coolant flow, and the engine begins overheating under load.",
+            "latency_ms": 800,
+            "warnings": []
+          },
+          {
+            "url": "https://example.org/radiators/blocked-fins",
+            "title": "Blocked radiator fins",
+            "rank": 2,
+            "summary": "Debris on radiator fins limits heat rejection.",
+            "latency_ms": 800,
+            "warnings": []
+          }
+        ]
+      }
+    },
+    {
+      "preprocessor_name": "brave",
+      "status": "succeeded",
+      "batch_index": 0,
+      "query": "engine overheating cooling pump causes",
+      "latency_ms": 430,
+      "error": null,
+      "output_payload": {
+        "tier": "default",
+        "warnings": [],
+        "results": [
+          {
+            "url": "https://www.example.org/pumps/low-flow/",
+            "title": "Why a coolant pump delivers low flow",
+            "rank": 1,
+            "summary": "Short summary.",
+            "latency_ms": 420,
+            "warnings": []
+          },
+          { "url": "javascript:alert(1)", "title": "Not a web page", "rank": 2, "summary": "ignored" },
+          { "url": null, "title": "Missing url", "rank": 3, "summary": "ignored" }
+        ]
+      }
+    },
+    {
+      "preprocessor_name": "tavily",
+      "status": "failed",
+      "batch_index": 0,
+      "query": "engine overheating cooling pump causes",
+      "latency_ms": 5000,
+      "error": { "code": "provider_timeout", "message": "upstream timed out" },
+      "output_payload": null
+    }
+  ]
+}
