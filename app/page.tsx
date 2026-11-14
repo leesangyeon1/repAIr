@@ -592,7 +592,7 @@ export default function Home() {
       </div>
 
       {/* Below the header on desktop, below the horizontal toolbar on phones; clear of the command bar. */}
-      <div className="pointer-events-none absolute right-2 top-[150px] z-20 md:right-4 md:top-[118px] lg:right-[calc(27%+1rem)]">
+      <div className="pointer-events-none absolute right-2 top-[174px] z-20 md:right-4 md:top-[150px] lg:right-[calc(27%+1rem)]">
         <GesturePanel gestures={gestures} />
       </div>
 
@@ -639,7 +639,7 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="absolute left-2 top-[92px] z-10 max-w-[calc(100%-1rem)] md:left-3 md:top-1/2 md:-translate-y-1/2">
+      <div className="absolute left-2 top-[116px] z-10 max-w-[calc(100%-1rem)] md:left-3 md:top-1/2 md:-translate-y-1/2">
         <GraphToolbar
           hasSelection={!!selectedId}
           rotating={rotating}
@@ -657,7 +657,8 @@ export default function Home() {
         />
       </div>
 
-      <ul className="pointer-events-none absolute left-4 top-[72px] z-10 hidden flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-300 md:flex">
+      {/* Stops short of the header's right column (up to ~390px wide) and wraps instead of running under it. */}
+      <ul className="pointer-events-none absolute left-4 top-[72px] z-10 hidden flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-300 md:right-[420px] md:flex lg:right-[calc(27%+420px)]">
         {NODE_TYPES.map((type) => (
           <li key={type} className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full" style={{ background: NODE_STYLE[type].color }} aria-hidden />

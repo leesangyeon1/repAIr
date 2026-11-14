@@ -65,7 +65,8 @@ export function GesturePanel({ gestures }: { gestures: HandGestures }) {
   return (
     <div className="flex flex-col items-end gap-1.5">
       <div className={`glass w-28 overflow-hidden rounded-2xl sm:w-48 ${on ? "" : "hidden"}`}>
-        <div className="flex items-center justify-between gap-1 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider">
+        {/* On phones the toggle's dot shows the mode, which keeps the panel above the details sheet. */}
+        <div className="flex items-center justify-between gap-1 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider max-sm:hidden">
           <span className={activeMode ? "text-cyan-200" : "text-amber-200"}>{activeMode ? "Active" : "Standby"}</span>
           {gestures.delegate && <span className="text-emerald-200/80">{gestures.delegate}</span>}
         </div>
