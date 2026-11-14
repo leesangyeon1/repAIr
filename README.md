@@ -32,7 +32,8 @@ The app works immediately without keys (interactive demo mode). Add keys to swit
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `TELEM_API_KEY` | for live search | Primary retrieval through `https://router.telem.ai` |
+| `TELEM_API_KEY` | for live search | Primary retrieval through Telem |
+| `TELEM_BASE_URL` | optional | Defaults to `https://hack.telem.ai/api`, the only endpoint that accepts SearchHack keys. Set `https://router.telem.ai` for a regular Telem key |
 | `TAVILY_API_KEY` | for fallback and Deep Research | Direct Tavily search |
 | `ANTHROPIC_API_KEY` | optional | Lets an LLM summarise the selected evidence quotes. Without it, answers are extractive quotes |
 
@@ -178,7 +179,7 @@ If the microphone is unavailable, type the same phrases or use the suggestion ch
 
 ## Known limitations
 
-- **Live Telem path is not yet verified end to end.** During development the supplied Telem key was rejected by the API (`401 Invalid API key`), so parsing was written from the published API reference and tested against schema-compatible fixtures. Once a working key is in place, run one query and confirm the retrieval log looks right. In particular, the `auto_routing: "accuracy"` request (sent without a provider list) has not been exercised live; if Telem rejects it, the pipeline retries with pinned `exa` + `brave`.
+- **Live Telem path verified once, on 2026-11-14.** The earlier `401 Invalid API key` came from calling `router.telem.ai`; SearchHack keys only work on `https://hack.telem.ai/api`, now the default. One live query ("Why is the engine overheating?") succeeded: `auto_routing: "accuracy"` routed to seven providers (exa, tavily, brave, parallel, ceramic, seltz, you), all succeeded, and `/v1/fetch` returned page text. The Telem test fixtures are still schema-compatible, not recordings.
 - **Direct Tavily path is untested live** (no key was available). Normalisation is covered by tests against the SDK's response type.
 - **Ranking is lexical.** Sources are scored by term overlap, not by meaning, so relevant pages that use different vocabulary can rank low.
 - **Web sources describe comparable real equipment**, not the fictional demo machine. The app states this next to the evidence.
