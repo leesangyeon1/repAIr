@@ -15,8 +15,15 @@ import type { KnowledgeLink, KnowledgeNode, NodeType, Relation } from "@/lib/typ
 
 export type GraphHandle = {
   focusNode: (id: string) => void;
-  zoom: (factor: number) => void;
+  /** durationMs 0 moves the camera immediately (continuous hand-gesture zoom). */
+  zoom: (factor: number, durationMs?: number) => void;
   resetView: () => void;
+  /** Rotate the camera around its target, in radians (positive dx/dy = drag right/down). */
+  orbit: (dx: number, dy: number) => void;
+  /** Slide the view, in fractions of its size (positive dx/dy = drag the graph right/down). */
+  pan: (dx: number, dy: number) => void;
+  /** Visible node closest to a point of the view (0..1 coordinates), within a small radius. */
+  pickAt: (x: number, y: number) => string | null;
 };
 
 type Props = {
@@ -517,7 +524,7 @@ export default function HolographicGraph({
         };
         go();
       },
-      zoom(factor: number) {
+      zoom(factor: number, durationMs = 450) {
         const graph = graphRef.current;
         if (!graph) return;
         const controls = graph.controls() as OrbitControls;
@@ -533,13 +540,64 @@ export default function HolographicGraph({
         graph.cameraPosition(
           { x: position.x, y: position.y, z: position.z },
           { x: target.x, y: target.y, z: target.z },
-          450,
+          durationMs,
         );
       },
       resetView() {
         const graph = graphRef.current;
         if (!graph) return;
         graph.zoomToFit(900, 70, (n) => !view.current.visible || view.current.visible.has(n.id));
+      },
+      orbit(dx: number, dy: number) {
+        const graph = graphRef.current;
+        if (!graph) return;
+        const target = (graph.controls() as OrbitControls).target.clone();
+        const offset = graph.camera().position.clone().sub(target);
+        if (!Number.isFinite(offset.lengthSq()) || offset.lengthSq() < 1e-6) return;
+        // Same sense as dragging with the mouse in OrbitControls.
+        const spherical = new THREE.Spherical().setFromVector3(offset);
+        spherical.theta -= dx;
+        spherical.phi = Math.min(Math.PI - 0.1, Math.max(0.1, spherical.phi - dy));
+        const position = target.clone().add(offset.setFromSpherical(spherical));
+        graph.cameraPosition({ x: position.x, y: position.y, z: position.z }, { x: target.x, y: target.y, z: target.z });
+      },
+      pan(dx: number, dy: number) {
+        const graph = graphRef.current;
+        const el = containerRef.current;
+        if (!graph || !el) return;
+        const camera = graph.camera() as THREE.PerspectiveCamera;
+        const target = (graph.controls() as OrbitControls).target.clone();
+        // Size of the visible plane through the target, so the graph tracks the hand 1:1 at any zoom.
+        const viewHeight = 2 * camera.position.distanceTo(target) * Math.tan((camera.fov * Math.PI) / 360);
+        const viewWidth = viewHeight * (el.clientWidth / Math.max(1, el.clientHeight));
+        const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
+        const up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1);
+        const shift = right.multiplyScalar(-dx * viewWidth).add(up.multiplyScalar(dy * viewHeight));
+        if (!Number.isFinite(shift.lengthSq())) return;
+        const position = camera.position.clone().add(shift);
+        target.add(shift);
+        graph.cameraPosition({ x: position.x, y: position.y, z: position.z }, { x: target.x, y: target.y, z: target.z });
+      },
+      pickAt(x: number, y: number) {
+        const graph = graphRef.current;
+        const el = containerRef.current;
+        if (!graph || !el) return null;
+        const px = x * el.clientWidth;
+        const py = y * el.clientHeight;
+        let best: string | null = null;
+        let bestDistance = 56;
+        nodeMap.current.forEach((node) => {
+          if (view.current.visible && !view.current.visible.has(node.id)) return;
+          const { x: nx, y: ny, z: nz } = node;
+          if (typeof nx !== "number" || typeof ny !== "number" || typeof nz !== "number") return;
+          const screen = graph.graph2ScreenCoords(nx, ny, nz);
+          const distance = Math.hypot(screen.x - px, screen.y - py);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            best = node.id;
+          }
+        });
+        return best;
       },
     }),
     [],

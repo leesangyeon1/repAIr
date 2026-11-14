@@ -61,6 +61,25 @@ body {
   color: #94a3b8;
 }
 
+/* Pointing-finger cursor for hand gestures; the ring fills while dwelling on a node. */
+.hand-cursor {
+  position: absolute;
+  z-index: 15;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  border-radius: 9999px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle, #a5f3fc 0 4px, transparent 5px),
+    conic-gradient(rgba(34, 211, 238, 0.9) calc(var(--dwell, 0) * 360deg), rgba(148, 163, 184, 0.25) 0);
+  -webkit-mask: radial-gradient(circle, #000 0 5px, transparent 6px 14px, #000 15px);
+  mask: radial-gradient(circle, #000 0 5px, transparent 6px 14px, #000 15px);
+}
+.hand-cursor[data-hover="true"] {
+  filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.9));
+}
+
 .thin-scroll {
   scrollbar-width: thin;
   scrollbar-color: rgba(103, 232, 249, 0.3) transparent;

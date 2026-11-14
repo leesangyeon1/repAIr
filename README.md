@@ -46,7 +46,8 @@ The app works immediately without keys (interactive demo mode). Add keys to swit
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `TELEM_API_KEY` | for live search | Primary retrieval through `https://router.telem.ai` |
+| `TELEM_API_KEY` | for live search | Primary retrieval through Telem |
+| `TELEM_BASE_URL` | optional | Defaults to `https://hack.telem.ai/api`, the only endpoint that accepts SearchHack keys. Set `https://router.telem.ai` for a regular Telem key |
 | `TAVILY_API_KEY` | for fallback and Deep Research | Direct Tavily search |
 | `ANTHROPIC_API_KEY` | optional | Lets an LLM summarise the selected evidence quotes. Without it, answers are extractive quotes |
 
@@ -192,7 +193,7 @@ If the microphone is unavailable, type the same phrases or use the suggestion ch
 
 ## Known limitations
 
-- **Live Telem path is not yet verified end to end.** During development the supplied Telem key was rejected by the API (`401 Invalid API key`), so parsing was written from the published API reference and tested against schema-compatible fixtures. Once a working key is in place, run one query and confirm the retrieval log looks right. In particular, the `auto_routing: "accuracy"` request (sent without a provider list) has not been exercised live; if Telem rejects it, the pipeline retries with pinned `exa` + `brave`.
+- **Live Telem path verified once, on 2026-11-14.** The earlier `401 Invalid API key` came from calling `router.telem.ai`; SearchHack keys only work on `https://hack.telem.ai/api`, now the default. One live query ("Why is the engine overheating?") succeeded: `auto_routing: "accuracy"` routed to seven providers (exa, tavily, brave, parallel, ceramic, seltz, you), all succeeded, and `/v1/fetch` returned page text. The Telem test fixtures are still schema-compatible, not recordings.
 - **Direct Tavily path is untested live** (no key was available). Normalisation is covered by tests against the SDK's response type.
 - **Ranking is lexical.** Sources are scored by term overlap, not by meaning, so relevant pages that use different vocabulary can rank low.
 - **Web sources describe comparable real equipment**, not the fictional demo machine. The app states this next to the evidence.
@@ -208,3 +209,30 @@ If the microphone is unavailable, type the same phrases or use the suggestion ch
 3. Persist graphs and retrieved sources per organisation.
 4. Use Telem sessions (`session_id`) to link follow-up questions into one trajectory.
 5. Field mode: offline cache of the graph, work-order integration, AR overlay.
+
+## Branches
+
+We work on `main` plus four short-lived feature branches, one per area of the app.
+
+| Branch | Owner | Scope |
+|---|---|---|
+| `main` | Everyone | Always demo-ready. The submission is built from here. |
+| `feat/search` | Search and retrieval lead | `lib/telem.ts`, `lib/tavily.ts`, `lib/retrieval.ts`, `lib/llm.ts`, `app/api/*`: query expansion, Telem and Tavily calls, ranking, evidence |
+| `feat/graph` | Backend and knowledge graph lead | `lib/graph-data.ts`, `lib/graph-utils.ts`, `lib/types.ts`, `lib/eval-set.ts`: seed graph, lookup, API schemas, evaluation set |
+| `feat/scene` | 3D frontend lead | `components/HolographicGraph.tsx`, `components/GraphToolbar.tsx`: 3D scene, highlighting, camera |
+| `feat/ui` | Product and UX lead | `app/page.tsx`, `components/CommandBar.tsx`, `KnowledgePanel.tsx`, `SearchIntelligencePanel.tsx`, `VoiceControls.tsx`, `hooks/useVoiceCommands.ts` |
+
+Telem and Tavily share `feat/search` because both are search providers and touch the same files.
+
+### Why we branch
+
+- **`main` stays working.** Half-finished work on one branch cannot break the demo or anyone else's setup.
+- **We can work in parallel.** Each branch mostly touches its own files, so we do not overwrite each other.
+- **Unfinished work is easy to leave out.** At feature freeze, a branch that is not ready is simply not merged.
+
+### Rules
+
+- Change the shared contract (the Zod schemas in `lib/types.ts` and node ids in `lib/graph-data.ts`) in its own small merge to `main` first, because every branch depends on it.
+- Merge into `main` in small pieces every 30 to 60 minutes. Do not save one large merge for the end.
+- Run `npm run typecheck && npm run lint && npm test` before merging into `main`.
+- Keep API keys (Telem, Tavily) in `.env.local` only. Never commit them.
