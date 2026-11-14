@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
+    "@mediapipe/tasks-vision": "1.2.3",
     "@tavily/core": "^1.1.0",
     "3d-force-graph": "^1.80.2",
     "lucide-react": "^1.73.0",

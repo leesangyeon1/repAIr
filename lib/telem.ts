@@ -10,7 +10,8 @@ import type { ProviderRun, SourceResult } from "./types";
  * requested, the top-level `routing` field lists the providers Telem's router picked.
  */
 
-export const TELEM_BASE_URL = "https://router.telem.ai";
+// SearchHack keys are only accepted by the hackathon deployment; router.telem.ai rejects them with 401.
+export const TELEM_BASE_URL = process.env.TELEM_BASE_URL || "https://hack.telem.ai/api";
 export const TELEM_SEARCH_TIMEOUT_MS = 14_000;
 export const TELEM_FETCH_TIMEOUT_MS = 9_000;
 export const PINNED_PROVIDERS = ["exa", "brave"] as const;

@@ -289,7 +289,7 @@ export const SEED_NODES: KnowledgeNode[] = [
   },
 ];
 
-const link = (source: string, relation: KnowledgeLink["relation"], target: string): KnowledgeLink => ({
+export const link = (source: string, relation: KnowledgeLink["relation"], target: string): KnowledgeLink => ({
   source,
   target,
   relation,
@@ -371,10 +371,10 @@ export const SEED_GRAPH: KnowledgeGraph = { nodes: SEED_NODES, links: SEED_LINKS
 /** Node types shown on first load. Documents and procedures emerge when a node is expanded. */
 export const INITIAL_TYPES: NodeType[] = ["machine", "system", "component", "symptom"];
 
-export function initialGraph(): KnowledgeGraph {
-  const nodes = SEED_NODES.filter((n) => INITIAL_TYPES.includes(n.type));
+export function initialGraph(seed: KnowledgeGraph = SEED_GRAPH): KnowledgeGraph {
+  const nodes = seed.nodes.filter((n) => INITIAL_TYPES.includes(n.type));
   const ids = new Set(nodes.map((n) => n.id));
-  return { nodes, links: SEED_LINKS.filter((l) => ids.has(l.source) && ids.has(l.target)) };
+  return { nodes, links: seed.links.filter((l) => ids.has(l.source) && ids.has(l.target)) };
 }
 
 export const NODE_STYLE: Record<NodeType, { color: string; label: string; radius: number }> = {

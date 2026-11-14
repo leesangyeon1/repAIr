@@ -4,19 +4,23 @@ import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CommandBar from "@/components/CommandBar";
+import { GesturePanel, GestureToggle } from "@/components/GestureControls";
 import GraphErrorBoundary from "@/components/GraphErrorBoundary";
 import GraphToolbar from "@/components/GraphToolbar";
 import type { GraphHandle } from "@/components/HolographicGraph";
 import KnowledgePanel from "@/components/KnowledgePanel";
 import SearchIntelligencePanel from "@/components/SearchIntelligencePanel";
+import { useHandGestures } from "@/hooks/useHandGestures";
 import { useVoiceCommands } from "@/hooks/useVoiceCommands";
 import { parseCommand, type Command } from "@/lib/command-parser";
-import { DATASET_LABEL, NODE_STYLE, SEED_GRAPH, SEED_LINKS, SEED_NODES, initialGraph } from "@/lib/graph-data";
+import { DATASETS, getDataset } from "@/lib/datasets";
+import { NODE_STYLE, initialGraph } from "@/lib/graph-data";
 import { findOwningSystem, getNeighborIds, getNodeById, getSystemSubgraphIds, mergeGraph } from "@/lib/graph-utils";
 import {
   NODE_TYPES,
   healthResponseSchema,
   searchResponseSchema,
+  type DatasetId,
   type HealthResponse,
   type KnowledgeGraph,
   type KnowledgeNode,
@@ -60,6 +64,9 @@ export default function Home() {
   const voiceOutputTouched = useRef(false);
   const selectedRef = useRef<string | null>(null);
 
+  const [datasetId, setDatasetId] = useState<DatasetId>("aerospace");
+  const dataset = getDataset(datasetId);
+  const seed = dataset.graph;
   const [graph, setGraph] = useState<KnowledgeGraph>(() => initialGraph());
   const [dynamicGraph, setDynamicGraph] = useState<KnowledgeGraph>({ nodes: [], links: [] });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -82,9 +89,9 @@ export default function Home() {
 
   /** Seeded + retrieved knowledge, including nodes not yet revealed in the hologram. */
   const known = useMemo<KnowledgeGraph>(() => {
-    const merged = mergeGraph(SEED_GRAPH, dynamicGraph.nodes, dynamicGraph.links);
+    const merged = mergeGraph(seed, dynamicGraph.nodes, dynamicGraph.links);
     return { nodes: merged.nodes, links: merged.links };
-  }, [dynamicGraph]);
+  }, [dynamicGraph, seed]);
 
   const selectedNode = getNodeById(known.nodes, selectedId) ?? null;
   const liveSearch = !!health && (health.telemConfigured || health.tavilyConfigured);
@@ -117,14 +124,14 @@ export default function Home() {
     setGraph((current) => {
       const merged = mergeGraph(
         current,
-        [...SEED_NODES.filter((n) => wanted.has(n.id)), ...(extra?.nodes ?? [])],
-        [...SEED_LINKS, ...(extra?.links ?? [])],
+        [...seed.nodes.filter((n) => wanted.has(n.id)), ...(extra?.nodes ?? [])],
+        [...seed.links, ...(extra?.links ?? [])],
       );
       return merged.addedNodeIds.length || merged.links.length !== current.links.length
         ? { nodes: merged.nodes, links: merged.links }
         : current;
     });
-  }, []);
+  }, [seed]);
 
   /** Change the selection, remembering the previous node for "go back". */
   const moveSelection = useCallback((id: string | null, record = true) => {
@@ -138,7 +145,7 @@ export default function Home() {
     (r: SearchResponse) => {
       if (!r.newNodes.length) return;
       setDynamicGraph((current) => {
-        const merged = mergeGraph({ nodes: [...SEED_NODES, ...current.nodes], links: current.links }, r.newNodes, r.newLinks);
+        const merged = mergeGraph({ nodes: [...seed.nodes, ...current.nodes], links: current.links }, r.newNodes, r.newLinks);
         return {
           nodes: merged.nodes.filter((n) => n.metadata?.dynamic === true),
           links: merged.links,
@@ -146,7 +153,7 @@ export default function Home() {
       });
       reveal([], { nodes: r.newNodes, links: r.newLinks });
     },
-    [reveal],
+    [reveal, seed],
   );
 
   const selectNode = useCallback(
@@ -186,7 +193,7 @@ export default function Home() {
       setError(null);
       setStatus(mode === "expand" ? "Retrieving live sources for this node…" : `Searching: “${query}”`);
       try {
-        const r = await postJson("/api/search", { query, selectedNodeId: nodeId ?? null, mode });
+        const r = await postJson("/api/search", { query, selectedNodeId: nodeId ?? null, mode, datasetId });
         if (seq !== requestSeq.current) return null;
         setResult(r);
         setResearch(null);
@@ -205,18 +212,18 @@ export default function Home() {
         if (seq === requestSeq.current) setLoading(false);
       }
     },
-    [applyResult],
+    [applyResult, datasetId],
   );
 
-  const describe = (r: SearchResponse): string => {
-    const focus = getNodeById(SEED_NODES, r.focusNodeId)?.name;
+  const describe = useCallback((r: SearchResponse): string => {
+    const focus = getNodeById(seed.nodes, r.focusNodeId)?.name;
     const where = focus ? ` Focused on ${focus}.` : "";
     if (r.searchMetadata.mode === "demo") return `Demo mode: answered from the synthetic graph.${where}`;
     if (r.evidenceStatus === "not_needed") return `Answered from the knowledge graph.${where}`;
     const failure = r.searchMetadata.calls.find((c) => c.status === "error" || c.status === "timeout");
     if (!r.sources.length && failure) return `Live search failed: ${failure.error ?? "request error"}.${where}`;
     return `${r.sources.length} source${r.sources.length === 1 ? "" : "s"} retrieved, ${r.evidence.length} used as evidence, in ${(r.searchMetadata.latencyMs / 1000).toFixed(1)} s.${where}`;
-  };
+  }, [seed]);
 
   /* ---------- Voice ---------- */
 
@@ -277,7 +284,11 @@ export default function Home() {
     setPanelOpen(true);
     setStatus("Deep Research: querying Tavily directly…");
     try {
-      const r = await postJson("/api/research", { query: result.query, selectedNodeId: result.focusNodeId ?? selectedId });
+      const r = await postJson("/api/research", {
+        query: result.query,
+        selectedNodeId: result.focusNodeId ?? selectedId,
+        datasetId,
+      });
       setResearch(r);
       addDynamic(r);
       if (r.newNodes.length) setHighlightIds((h) => [...new Set([...h, ...r.newNodes.map((n) => n.id)])]);
@@ -293,12 +304,13 @@ export default function Home() {
     } finally {
       setResearchLoading(false);
     }
-  }, [addDynamic, result, selectedId]);
+  }, [addDynamic, datasetId, result, selectedId]);
 
-  const resetGraph = useCallback(() => {
+  /** Clear everything and show the starting view of `start` (the active dataset unless switching). */
+  const resetTo = useCallback((start: KnowledgeGraph, message: string) => {
     requestSeq.current++;
     stopSpeaking();
-    setGraph(initialGraph());
+    setGraph(initialGraph(start));
     setDynamicGraph({ nodes: [], links: [] });
     moveSelection(null);
     setHighlightIds([]);
@@ -309,20 +321,31 @@ export default function Home() {
     setError(null);
     setLoading(false);
     setRotating(false);
-    setStatus("Graph reset to the starting view.");
+    setStatus(message);
     window.setTimeout(() => graphApi.current?.resetView(), 400);
   }, [moveSelection, stopSpeaking]);
+
+  const resetGraph = useCallback(() => resetTo(seed, "Graph reset to the starting view."), [resetTo, seed]);
+
+  const switchDataset = useCallback(
+    (id: DatasetId) => {
+      const next = getDataset(id);
+      setDatasetId(id);
+      resetTo(next.graph, `Switched to the ${next.name} example.`);
+    },
+    [resetTo],
+  );
 
   const showAll = useCallback(() => {
     setFilterIds(null);
     setHighlightIds([]);
     reveal(
-      SEED_NODES.map((n) => n.id),
+      seed.nodes.map((n) => n.id),
       dynamicGraph,
     );
     setStatus("Showing every node in the knowledge base.");
     window.setTimeout(() => graphApi.current?.resetView(), 700);
-  }, [dynamicGraph, reveal]);
+  }, [dynamicGraph, reveal, seed]);
 
   const hideUnrelated = useCallback(() => {
     if (!selectedId) {
@@ -447,6 +470,7 @@ export default function Home() {
     },
     [
       deepResearch,
+      describe,
       dynamicGraph,
       expandNode,
       hideUnrelated,
@@ -470,16 +494,33 @@ export default function Home() {
     (text: string, viaVoice: boolean) => {
       // Using the microphone switches spoken answers on, unless the user already chose otherwise.
       if (viaVoice && !voiceOutputTouched.current) setVoiceOutput(true);
-      const commands = parseCommand(text, { nodes: SEED_NODES, selectedNodeId: selectedId });
+      const commands = parseCommand(text, { nodes: seed.nodes, selectedNodeId: selectedId });
       if (!commands.length) return;
       void execute(commands, viaVoice);
     },
-    [execute, selectedId],
+    [execute, seed, selectedId],
   );
 
   useEffect(() => {
     commandHandler.current = handleText;
   }, [handleText]);
+
+  /* ---------- Hand gestures ---------- */
+
+  // Held gestures and dwell-select reuse the voice command path; fist and pinch move the camera directly.
+  const gestures = useHandGestures({
+    onCommand: (command) => void execute([command], false),
+    onOrbit: (dx, dy) => graphApi.current?.orbit(dx, dy),
+    onPan: (dx, dy) => graphApi.current?.pan(dx, dy),
+    onZoom: (factor) => graphApi.current?.zoom(factor, 0),
+    pick: (x, y) => graphApi.current?.pickAt(x, y) ?? null,
+    onModeChange: (mode) =>
+      setStatus(
+        mode === "active"
+          ? "Gesture mode on. Cross your index fingers (X) to exit."
+          : "Gesture mode off. Show an OK sign (👌) to start again.",
+      ),
+  });
 
   const clearAll = useCallback(() => {
     requestSeq.current++;
@@ -547,6 +588,12 @@ export default function Home() {
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_55%,rgba(2,4,12,0.85)_100%)]"
           aria-hidden
         />
+        <div ref={gestures.cursorRef} className="hand-cursor" style={{ display: "none" }} aria-hidden />
+      </div>
+
+      {/* Below the header on desktop, below the horizontal toolbar on phones; clear of the command bar. */}
+      <div className="pointer-events-none absolute right-2 top-[174px] z-20 md:right-4 md:top-[150px] lg:right-[calc(27%+1rem)]">
+        <GesturePanel gestures={gestures} />
       </div>
 
       <header className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex items-start justify-between gap-3 p-3 sm:p-4 lg:right-[27%]">
@@ -554,27 +601,45 @@ export default function Home() {
           <h1 className="text-2xl font-bold leading-none tracking-tight text-white sm:text-[28px]">
             rep<span className="text-cyan-300 drop-shadow-[0_0_12px_rgba(34,211,238,0.8)]">AI</span>r
           </h1>
-          <p className="mt-1 text-xs text-slate-300 sm:text-sm">Your Technical Knowledge, Reimagined in 3D</p>
+          <p className="mt-1 text-xs text-slate-300 max-sm:hidden sm:text-sm">Your Technical Knowledge, Reimagined in 3D</p>
         </div>
         <div className="pointer-events-auto flex shrink-0 flex-col items-end gap-1.5">
           <span className={`glass flex items-center gap-2 rounded-full px-3 py-1 text-xs ${statusPill.tone}`}>
             <span className={`h-2 w-2 rounded-full ${statusPill.dot}`} aria-hidden />
             {statusPill.text}
           </span>
-          <span className="glass rounded-full px-3 py-1 text-[11px] text-amber-200/90 max-sm:hidden">{DATASET_LABEL}</span>
-          <button
-            type="button"
-            onClick={() => setPanelOpen((open) => !open)}
-            className="glass flex items-center gap-1.5 rounded-full px-3 py-1 text-xs text-cyan-100 lg:hidden"
-            aria-expanded={panelOpen}
-          >
-            {panelOpen ? <PanelRightClose className="h-3.5 w-3.5" aria-hidden /> : <PanelRightOpen className="h-3.5 w-3.5" aria-hidden />}
-            Details
-          </button>
+          <label className="glass flex items-center gap-1.5 rounded-full py-1 pl-3 pr-2 text-xs text-cyan-100">
+            <span className="text-slate-400">Example</span>
+            <select
+              value={datasetId}
+              onChange={(e) => switchDataset(e.target.value as DatasetId)}
+              aria-label="Example machine"
+              className="cursor-pointer bg-transparent font-medium text-cyan-100 focus:outline-none"
+            >
+              {DATASETS.map((d) => (
+                <option key={d.id} value={d.id} className="bg-slate-900 text-slate-100">
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="glass rounded-full px-3 py-1 text-[11px] text-amber-200/90 max-sm:hidden">{dataset.label}</span>
+          <div className="flex items-center gap-1.5">
+            <GestureToggle gestures={gestures} />
+            <button
+              type="button"
+              onClick={() => setPanelOpen((open) => !open)}
+              className="glass flex h-8 items-center gap-1.5 rounded-full px-3 text-xs text-cyan-100 lg:hidden"
+              aria-expanded={panelOpen}
+            >
+              {panelOpen ? <PanelRightClose className="h-3.5 w-3.5" aria-hidden /> : <PanelRightOpen className="h-3.5 w-3.5" aria-hidden />}
+              Details
+            </button>
+          </div>
         </div>
       </header>
 
-      <div className="absolute left-2 top-[92px] z-10 max-w-[calc(100%-1rem)] md:left-3 md:top-1/2 md:-translate-y-1/2">
+      <div className="absolute left-2 top-[116px] z-10 max-w-[calc(100%-1rem)] md:left-3 md:top-1/2 md:-translate-y-1/2">
         <GraphToolbar
           hasSelection={!!selectedId}
           rotating={rotating}
@@ -592,7 +657,8 @@ export default function Home() {
         />
       </div>
 
-      <ul className="pointer-events-none absolute left-4 top-[72px] z-10 hidden flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-300 md:flex">
+      {/* Stops short of the header's right column (up to ~390px wide) and wraps instead of running under it. */}
+      <ul className="pointer-events-none absolute left-4 top-[72px] z-10 hidden flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-300 md:right-[420px] md:flex lg:right-[calc(27%+420px)]">
         {NODE_TYPES.map((type) => (
           <li key={type} className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full" style={{ background: NODE_STYLE[type].color }} aria-hidden />
@@ -615,6 +681,7 @@ export default function Home() {
             }}
             loading={loading || researchLoading}
             status={status}
+            suggestions={dataset.suggestions}
             onSubmit={(text) => handleText(text, false)}
             onClear={clearAll}
           />

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { runSearchPipeline } from "@/lib/retrieval";
+import { getDataset } from "@/lib/datasets";
 import { liveDeps, readJsonBody } from "@/lib/server-deps";
 import { searchRequestSchema, searchResponseSchema } from "@/lib/types";
 
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
     );
   }
   try {
-    const result = await runSearchPipeline(parsed.data, liveDeps());
+    const result = await runSearchPipeline(parsed.data, { ...liveDeps(), graph: getDataset(parsed.data.datasetId).graph });
     return NextResponse.json(searchResponseSchema.parse(result), {
       headers: { "Cache-Control": "no-store" },
     });

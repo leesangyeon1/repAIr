@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { parseCommand } from "@/lib/command-parser";
+import { DATASETS } from "@/lib/datasets";
 import { SEED_GRAPH, SEED_LINKS, SEED_NODES, initialGraph } from "@/lib/graph-data";
 import {
   canonicalUrl,
@@ -30,6 +32,44 @@ describe("seed graph integrity", () => {
     expect(g.nodes.length).toBeGreaterThanOrEqual(20);
     expect(g.nodes.length).toBeLessThanOrEqual(30);
     for (const n of SEED_NODES) expect(getNeighborIds(SEED_LINKS, n.id).size).toBeGreaterThan(0);
+  });
+});
+
+describe.each(DATASETS.map((d) => [d.id, d] as const))("%s dataset integrity", (_id, dataset) => {
+  const { nodes, links } = dataset.graph;
+
+  it("has unique deterministic ids and no dangling links", () => {
+    const ids = nodes.map((n) => n.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const id of ids) expect(id).toMatch(/^[a-z0-9_]+$/);
+    for (const l of links) {
+      expect(ids).toContain(l.source);
+      expect(ids).toContain(l.target);
+    }
+  });
+
+  it("has one machine, starts with 20-30 nodes and keeps every node reachable", () => {
+    expect(nodes.filter((n) => n.type === "machine")).toHaveLength(1);
+    const g = initialGraph(dataset.graph);
+    expect(g.nodes.length).toBeGreaterThanOrEqual(20);
+    expect(g.nodes.length).toBeLessThanOrEqual(30);
+    for (const n of nodes) expect(getNeighborIds(links, n.id).size).toBeGreaterThan(0);
+  });
+
+  it("gives every symptom at least one component cause", () => {
+    for (const s of nodes.filter((n) => n.type === "symptom")) {
+      expect(componentsForSymptom(dataset.graph, s.id).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("labels the data as synthetic and offers suggestions that resolve to its nodes", () => {
+    expect(dataset.label).toMatch(/synthetic/i);
+    for (const text of dataset.suggestions) {
+      const [command] = parseCommand(text, { nodes });
+      if (/^show me/i.test(text)) expect(command.type).toBe("focus");
+      if (/^expand/i.test(text)) expect(command).toMatchObject({ type: "expand", nodeId: expect.any(String) });
+      if (/^why/i.test(text)) expect(command.type).toBe("search");
+    }
   });
 });
 
